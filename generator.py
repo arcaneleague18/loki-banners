@@ -28,21 +28,31 @@ import os
 # CONFIGURATION BLOCK
 # =============================================================================
 
-TEXT = "LOKI"
+TEXT = "L O K I"
 OUTPUT = "output.svg"
 WIDTH = 1800
 HEIGHT = 900
-BACKGROUND = "#050505"
+BACKGROUND = "#030806"
+TEXT_COLOR = "#ebfce2"
 PRIMARY_GOLD = "#d4af37"
 SECONDARY_GOLD = "#f6e27a"
-GREEN_MAGIC = "#4cff8f"
+GREEN_MAGIC = "#6effa0"
+GLOW_AURA = "#45e87a"
 
 DURATION = 12.0
 SEED = 2
 
-ENABLE_GLOW = False
+ENABLE_GLOW = True
 ENABLE_FONT_CYCLING = True
 ENABLE_TIME_DISTORTION = True
+
+# Glow & Shine Controls for Glowing Letters
+GLOW_INTENSITY = 0.5   # Glow brightness multiplier (e.g. 0.2 = subtle, 1.0 = normal, 2.0 = ultra radiant)
+GLOW_RADIUS = 1.5      # Glow halo blur spread radius multiplier (e.g. 0.5 to 2.5)
+
+# Time Distortion Controls
+DISTORTION_AMOUNT = 0.5  # Glitch/warp displacement scale multiplier (e.g. 0.0 = off, 0.5 = subtle, 1.0 = default, 2.5 = heavy warp)
+
 # Custom local fonts folder
 FONTS_DIR = "fonts"
 
@@ -214,13 +224,16 @@ def build_svg_defs() -> str:
         '  </radialGradient>\n'
     )
 
-    # Green Magic Glow Filter
+    # Atmospheric Green Halo Glow Filter (Matches reference screenshot bloom)
     if ENABLE_GLOW:
+        blur1 = max(1.0, 6.0 * GLOW_RADIUS)
+        blur2 = max(2.0, 22.0 * GLOW_RADIUS)
+        blur3 = max(5.0, 50.0 * GLOW_RADIUS)
         defs.append(
-            '  <filter id="loki-green-glow" x="-40%" y="-40%" width="180%" height="180%">\n'
-            '    <feGaussianBlur stdDeviation="4" result="blur1" />\n'
-            '    <feGaussianBlur stdDeviation="16" result="blur2" />\n'
-            '    <feGaussianBlur stdDeviation="35" result="blur3" />\n'
+            '  <filter id="loki-green-glow" x="-80%" y="-80%" width="260%" height="260%">\n'
+            f'    <feGaussianBlur stdDeviation="{blur1:.1f}" result="blur1" />\n'
+            f'    <feGaussianBlur stdDeviation="{blur2:.1f}" result="blur2" />\n'
+            f'    <feGaussianBlur stdDeviation="{blur3:.1f}" result="blur3" />\n'
             '    <feMerge>\n'
             '      <feMergeNode in="blur3" />\n'
             '      <feMergeNode in="blur2" />\n'
@@ -244,16 +257,22 @@ def build_svg_defs() -> str:
     )
 
     # Time Distortion / Glitch Filter
-    if ENABLE_TIME_DISTORTION:
+    if ENABLE_TIME_DISTORTION and DISTORTION_AMOUNT > 0.0:
+        base_scale = max(0.0, 25.0 * DISTORTION_AMOUNT)
+        s1 = max(0.0, 35.0 * DISTORTION_AMOUNT)
+        s2 = max(0.0, 2.0 * DISTORTION_AMOUNT)
+        s3 = max(0.0, 28.0 * DISTORTION_AMOUNT)
+        s4 = max(0.0, 1.0 * DISTORTION_AMOUNT)
+        s5 = max(0.0, 35.0 * DISTORTION_AMOUNT)
         defs.append(
-            '  <filter id="loki-time-distortion" x="-20%" y="-20%" width="140%" height="140%">\n'
-            '    <feTurbulence type="fractalNoise" baseFrequency="0.04 0.8" numOctaves="2" result="noise">\n'
+            f'  <filter id="loki-time-distortion" x="-30%" y="-30%" width="160%" height="160%">\n'
+            f'    <feTurbulence type="fractalNoise" baseFrequency="0.04 0.8" numOctaves="2" result="noise">\n'
             f'      <animate attributeName="baseFrequency" values="0.02 0.8; 0.1 0.05; 0.01 0.9; 0.02 0.8" keyTimes="0; 0.35; 0.7; 1" dur="{DURATION}s" repeatCount="indefinite"/>\n'
-            '    </feTurbulence>\n'
-            '    <feDisplacementMap in="SourceGraphic" in2="noise" scale="25" xChannelSelector="R" yChannelSelector="G" result="warped">\n'
-            f'      <animate attributeName="scale" values="35; 2; 28; 1; 35" keyTimes="0; 0.3; 0.55; 0.85; 1" dur="{DURATION}s" repeatCount="indefinite"/>\n'
-            '    </feDisplacementMap>\n'
-            '  </filter>\n'
+            f'    </feTurbulence>\n'
+            f'    <feDisplacementMap in="SourceGraphic" in2="noise" scale="{base_scale:.1f}" xChannelSelector="R" yChannelSelector="G" result="warped">\n'
+            f'      <animate attributeName="scale" values="{s1:.1f}; {s2:.1f}; {s3:.1f}; {s4:.1f}; {s5:.1f}" keyTimes="0; 0.3; 0.55; 0.85; 1" dur="{DURATION}s" repeatCount="indefinite"/>\n'
+            f'    </feDisplacementMap>\n'
+            f'  </filter>\n'
         )
 
     defs.append("</defs>\n")
@@ -339,16 +358,17 @@ def build_typography() -> str:
         weights = [prng.choice(["400", "700", "900", "800", "300"]) for _ in range(len(keytimes))]
         weights_str = "; ".join(weights)
 
-        filter_attr = 'filter="url(#loki-time-distortion) url(#loki-emboss)"' if ENABLE_TIME_DISTORTION else 'filter="url(#loki-emboss)"'
+        filter_attr = 'filter="url(#loki-time-distortion) url(#loki-emboss)"' if (ENABLE_TIME_DISTORTION and DISTORTION_AMOUNT > 0.0) else 'filter="url(#loki-emboss)"'
 
         typo_elements.append(f'  <!-- Letter {html.escape(char)} -->\n')
         typo_elements.append(f'  <g id="letter-group-{i}" transform="translate({char_x:.1f}, {char_y:.1f})">\n')
 
-        # Layer 1: Outer Green Magic Glow Aura
+        # Layer 1: Luminous Outer Green Bloom Halo
         if ENABLE_GLOW:
+            glow1_op = min(1.0, max(0.0, 0.85 * GLOW_INTENSITY))
             typo_elements.append(
                 f'    <text x="0" y="0" class="loki-text" font-size="{char_base_size:.1f}" '
-                f'fill="{GREEN_MAGIC}" opacity="0.65" filter="url(#loki-green-glow)">{html.escape(char)}\n'
+                f'fill="{GREEN_MAGIC}" opacity="{glow1_op:.2f}" filter="url(#loki-green-glow)">{html.escape(char)}\n'
             )
             if ENABLE_FONT_CYCLING:
                 typo_elements.append(
@@ -356,10 +376,11 @@ def build_typography() -> str:
                 )
             typo_elements.append('    </text>\n')
 
-        # Layer 2: Metallic Gold Bevel Stroke
+        # Layer 2: Soft Inner Mint Glow Halo
+        glow2_op = min(1.0, max(0.0, 0.9 * GLOW_INTENSITY))
         typo_elements.append(
             f'    <text x="0" y="0" class="loki-text" font-size="{char_base_size:.1f}" '
-            f'fill="none" stroke="url(#loki-bevel-grad)" stroke-width="{max(2.0, char_base_size*0.02):.1f}" stroke-linejoin="round">{html.escape(char)}\n'
+            f'fill="{TEXT_COLOR}" opacity="{glow2_op:.2f}" filter="url(#loki-green-glow)">{html.escape(char)}\n'
         )
         if ENABLE_FONT_CYCLING:
             typo_elements.append(
@@ -367,10 +388,10 @@ def build_typography() -> str:
             )
         typo_elements.append('    </text>\n')
 
-        # Layer 3: Main Metallic Gold Face Text with Emboss
+        # Layer 3: Core Radiant Mint-White Text Face
         typo_elements.append(
             f'    <text x="0" y="0" class="loki-text" font-size="{char_base_size:.1f}" '
-            f'fill="url(#loki-gold-grad)" {filter_attr}>{html.escape(char)}\n'
+            f'fill="{TEXT_COLOR}" {filter_attr}>{html.escape(char)}\n'
         )
         if ENABLE_FONT_CYCLING:
             typo_elements.append(
