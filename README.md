@@ -4,9 +4,9 @@ A standalone, pure Python SVG generator that creates **100% vector, SMIL-animate
 
 Generates standalone, self-contained SVG files with Base64 embedded fonts, multi-pass halogen glows, time-distortion glitching, and text-clustered ambient dust particles—with **zero external JavaScript dependencies**.
 
-<img width="700" height="83" alt="output (1)" src="https://github.com/user-attachments/assets/cb11b7f4-f406-48ef-ae4b-6f94bad53eae" />
+<img width="1000" height="200" alt="output (1)" src="https://github.com/user-attachments/assets/cb11b7f4-f406-48ef-ae4b-6f94bad53eae" />
 
-<img width="700" height="83" alt="output" src="https://github.com/user-attachments/assets/53a56cd5-b137-41f3-b2a0-4f665084853d" />
+<img width="1000" height="100" alt="output" src="https://github.com/user-attachments/assets/53a56cd5-b137-41f3-b2a0-4f665084853d" />
 
 
 ## Features
