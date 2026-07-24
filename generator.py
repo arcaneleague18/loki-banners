@@ -28,10 +28,10 @@ import os
 # CONFIGURATION BLOCK
 # =============================================================================
 
-TEXT = "L O K I"
+TEXT = "LOKI"
 OUTPUT = "output.svg"
 WIDTH = 1800
-HEIGHT = 900
+HEIGHT = 500
 BACKGROUND = "#030806"
 TEXT_COLOR = "#ebfce2"
 PRIMARY_GOLD = "#d4af37"
@@ -40,7 +40,7 @@ GREEN_MAGIC = "#6effa0"
 GLOW_AURA = "#45e87a"
 
 DURATION = 12.0
-SEED = 2
+SEED = 0
 
 ENABLE_GLOW = True
 ENABLE_FONT_CYCLING = True
@@ -53,17 +53,19 @@ GLOW_RADIUS = 1.5      # Glow halo blur spread radius multiplier (e.g. 0.5 to 2.
 # Time Distortion Controls
 DISTORTION_AMOUNT = 0.5  # Glitch/warp displacement scale multiplier (e.g. 0.0 = off, 0.5 = subtle, 1.0 = default, 2.5 = heavy warp)
 
+# Typography Gap & Spacing Controls
+LETTER_GAP_FACTOR = 1.35  # Gap ratio multiplier between letters (e.g., 1.0 = normal, 1.35 = spacious gap, 2.0 = extra wide spacing)
+
+# Ambient White Particle Effect Controls
+ENABLE_PARTICLES = True
+PARTICLE_COUNT = 30  # Number of floating white particles (e.g. 0 = none, 30 = subtle, 60 = normal, 120 = dense cosmic dust)
+
 # Custom local fonts folder
 FONTS_DIR = "fonts"
 
-# Custom local fonts configuration: List of (font_family_name, font_file_path)
-# Any .ttf or .otf files placed in FONTS_DIR will also be auto-discovered!
-CUSTOM_FONTS = [
-    ("Old English Five", "old-english-five.regular.ttf"),
-    ("usangel", "usangel.ttf"),
-    ("ARB 85 Poster Script JAN-39 FRE", "ARB 85 Poster Script JAN-39 FRE.ttf"),
-    ("CloisterBlack", "CloisterBlack.ttf"),
-]
+# Custom local fonts configuration (OPTIONAL)
+# NOTE: All .ttf, .otf, .woff, .woff2 files in the 'fonts/' folder are AUTOMATICALLY detected & used!
+CUSTOM_FONTS = []
 
 # =============================================================================
 # FONTS & STYLES
@@ -105,57 +107,72 @@ HERO_CHARACTER_FONTS = {
 
 def load_custom_fonts() -> tuple[str, list[str]]:
     """
-    Scans configured CUSTOM_FONTS, the FONTS_DIR folder, and current directory for .ttf/.otf files,
-    encodes them into Base64 @font-face CSS rules, and returns (css_string, font_names).
+    Automatically scans FONTS_DIR folder (and working directory) for all font files (.ttf, .otf, .woff, .woff2),
+    encodes them into Base64 Data URIs, generates @font-face CSS rules, and registers font-family names into pools.
     """
     css_rules = []
     loaded_font_names = []
-    font_entries = list(CUSTOM_FONTS)
 
-    # Search directories for auto-discovery
+    # Map of (abs_font_path) -> list of font_family_name aliases
+    discovered = {}
+
     search_dirs = [FONTS_DIR, "."] if os.path.exists(FONTS_DIR) else ["."]
+
+    # Process explicitly declared CUSTOM_FONTS first (if any)
+    for font_name, font_path in CUSTOM_FONTS:
+        resolved = None
+        if os.path.exists(font_path):
+            resolved = font_path
+        elif os.path.exists(os.path.join(FONTS_DIR, font_path)):
+            resolved = os.path.join(FONTS_DIR, font_path)
+        elif os.path.exists(os.path.join(FONTS_DIR, os.path.basename(font_path))):
+            resolved = os.path.join(FONTS_DIR, os.path.basename(font_path))
+        if resolved:
+            abs_p = os.path.abspath(resolved)
+            discovered.setdefault(abs_p, [])
+            if font_name not in discovered[abs_p]:
+                discovered[abs_p].append(font_name)
+
+    # Automatically scan directories for any font files
     for sdir in search_dirs:
         try:
             for fname in os.listdir(sdir):
-                if fname.lower().endswith((".ttf", ".otf")):
-                    rel_path = os.path.join(sdir, fname) if sdir != "." else fname
-                    if not any(fpath == fname or fpath == rel_path for _, fpath in font_entries):
-                        clean_name = fname.rsplit(".", 1)[0].replace("-", " ").replace("_", " ").title()
-                        font_entries.append((clean_name, rel_path))
-        except Exception:
-            pass
+                if fname.lower().endswith((".ttf", ".otf", ".woff", ".woff2")):
+                    full_path = os.path.abspath(os.path.join(sdir, fname))
+                    stem = fname.rsplit(".", 1)[0]
+                    clean_name = stem.replace("-", " ").replace("_", " ").replace(".", " ").title().strip()
 
-    for font_name, font_path in font_entries:
-        # Resolve path: try exact path, then FONTS_DIR/font_path, then basename in FONTS_DIR
-        resolved_path = None
-        if os.path.exists(font_path):
-            resolved_path = font_path
-        elif os.path.exists(os.path.join(FONTS_DIR, font_path)):
-            resolved_path = os.path.join(FONTS_DIR, font_path)
-        elif os.path.exists(os.path.join(FONTS_DIR, os.path.basename(font_path))):
-            resolved_path = os.path.join(FONTS_DIR, os.path.basename(font_path))
+                    aliases = discovered.setdefault(full_path, [])
+                    for name in [stem, clean_name]:
+                        if name and name not in aliases:
+                            aliases.append(name)
+        except Exception as e:
+            print(f"Warning scanning font folder '{sdir}': {e}")
 
-        if resolved_path:
-            try:
-                ext = resolved_path.lower().rsplit(".", 1)[-1]
-                fmt = "opentype" if ext == "otf" else "truetype"
-                mime = f"font/{ext}"
+    for font_path, font_names in discovered.items():
+        try:
+            ext = font_path.lower().rsplit(".", 1)[-1]
+            fmt = "opentype" if ext == "otf" else ("woff2" if ext == "woff2" else ("woff" if ext == "woff" else "truetype"))
+            mime = f"font/{ext}"
 
-                with open(resolved_path, "rb") as f:
-                    b64_data = base64.b64encode(f.read()).decode("utf-8")
+            with open(font_path, "rb") as f:
+                b64_data = base64.b64encode(f.read()).decode("utf-8")
 
+            for fname in font_names:
                 css_rules.append(
                     f"    @font-face {{\n"
-                    f"      font-family: '{font_name}';\n"
+                    f"      font-family: '{fname}';\n"
                     f"      src: url('data:{mime};charset=utf-8;base64,{b64_data}') format('{fmt}');\n"
                     f"      font-weight: normal;\n"
                     f"      font-style: normal;\n"
                     f"    }}\n"
                 )
-                if font_name not in loaded_font_names:
-                    loaded_font_names.append(font_name)
-            except Exception as e:
-                print(f"Warning: Could not load custom font '{font_path}': {e}")
+                if fname not in loaded_font_names:
+                    loaded_font_names.append(fname)
+
+            print(f"Auto-detected custom font: {os.path.basename(font_path)} -> registered as {font_names}")
+        except Exception as e:
+            print(f"Warning: Could not load custom font '{font_path}': {e}")
 
     return "".join(css_rules), loaded_font_names
 
@@ -224,13 +241,13 @@ def build_svg_defs() -> str:
         '  </radialGradient>\n'
     )
 
-    # Atmospheric Green Halo Glow Filter (Matches reference screenshot bloom)
+    # Atmospheric Green Halo Glow Filter (Generous filter bounds to eliminate box edge clipping)
     if ENABLE_GLOW:
         blur1 = max(1.0, 6.0 * GLOW_RADIUS)
         blur2 = max(2.0, 22.0 * GLOW_RADIUS)
         blur3 = max(5.0, 50.0 * GLOW_RADIUS)
         defs.append(
-            '  <filter id="loki-green-glow" x="-80%" y="-80%" width="260%" height="260%">\n'
+            '  <filter id="loki-green-glow" x="-200%" y="-200%" width="500%" height="500%">\n'
             f'    <feGaussianBlur stdDeviation="{blur1:.1f}" result="blur1" />\n'
             f'    <feGaussianBlur stdDeviation="{blur2:.1f}" result="blur2" />\n'
             f'    <feGaussianBlur stdDeviation="{blur3:.1f}" result="blur3" />\n'
@@ -243,16 +260,15 @@ def build_svg_defs() -> str:
             '  </filter>\n'
         )
 
-    # 3D Metallic Emboss Bevel & Shadow Filter
+    # 3D Metallic Emboss Bevel Filter
     defs.append(
-        '  <filter id="loki-emboss" x="-20%" y="-20%" width="140%" height="140%">\n'
+        '  <filter id="loki-emboss" x="-200%" y="-200%" width="500%" height="500%">\n'
         '    <feGaussianBlur stdDeviation="1" result="blur"/>\n'
         '    <feSpecularLighting in="blur" surfaceScale="4" specularConstant="1.4" specularExponent="22" lighting-color="#ffffff" result="spec">\n'
         '      <feDistantLight azimuth="135" elevation="50"/>\n'
         '    </feSpecularLighting>\n'
         '    <feComposite in="spec" in2="SourceAlpha" operator="in" result="specOut"/>\n'
         '    <feComposite in="SourceGraphic" in2="specOut" operator="arithmetic" k1="0" k2="1" k3="1" k4="0" result="lit"/>\n'
-        '    <feDropShadow dx="0" dy="14" stdDeviation="12" flood-color="#000000" flood-opacity="0.95"/>\n'
         '  </filter>\n'
     )
 
@@ -265,7 +281,7 @@ def build_svg_defs() -> str:
         s4 = max(0.0, 1.0 * DISTORTION_AMOUNT)
         s5 = max(0.0, 35.0 * DISTORTION_AMOUNT)
         defs.append(
-            f'  <filter id="loki-time-distortion" x="-30%" y="-30%" width="160%" height="160%">\n'
+            f'  <filter id="loki-time-distortion" x="-200%" y="-200%" width="500%" height="500%">\n'
             f'    <feTurbulence type="fractalNoise" baseFrequency="0.04 0.8" numOctaves="2" result="noise">\n'
             f'      <animate attributeName="baseFrequency" values="0.02 0.8; 0.1 0.05; 0.01 0.9; 0.02 0.8" keyTimes="0; 0.35; 0.7; 1" dur="{DURATION}s" repeatCount="indefinite"/>\n'
             f'    </feTurbulence>\n'
@@ -288,8 +304,71 @@ def build_background() -> str:
     )
 
 
+def build_particles() -> str:
+    """
+    Generate static white ambient particles clustered around text coordinates,
+    fading and reducing in density as distance from text increases.
+    """
+    if not ENABLE_PARTICLES or PARTICLE_COUNT <= 0:
+        return ""
+
+    prng = random.Random(SEED + 999)
+    p_elements = ['<!-- Static White Text-Clustered Particles -->\n', '<g id="loki-particles-group">\n']
+
+    text_chars = [c for c in TEXT if c != ' ']
+    n_chars = len(text_chars)
+    if n_chars == 0:
+        return ""
+
+    max_text_width = WIDTH * 0.86
+    gap_mult = max(0.8, LETTER_GAP_FACTOR)
+    if n_chars > 1:
+        raw_spacing = max_text_width / (n_chars - 1)
+        letter_spacing_px = min(280.0 * gap_mult, raw_spacing)
+    else:
+        letter_spacing_px = 0.0
+
+    char_base_size = min(280.0, (letter_spacing_px / gap_mult) * 1.05) if n_chars > 1 else 280.0
+    total_width = (n_chars - 1) * letter_spacing_px
+    start_x = (WIDTH - total_width) / 2
+    center_y = HEIGHT / 2 + (char_base_size * 0.06)
+
+    # Generate static particles with Gaussian spatial clustering around letters
+    for i in range(PARTICLE_COUNT):
+        # Pick a random character anchor
+        char_idx = prng.randint(0, max(0, n_chars - 1))
+        anchor_x = start_x + char_idx * letter_spacing_px
+
+        # Distance distribution: concentrated near (anchor_x, center_y) with falloff
+        offset_x = prng.gauss(0, letter_spacing_px * 0.85)
+        offset_y = prng.gauss(0, char_base_size * 0.65)
+
+        cx = min(WIDTH - 15, max(15, anchor_x + offset_x))
+        cy = min(HEIGHT - 15, max(15, center_y + offset_y))
+
+        # Calculate radial/vertical distance from nearest text region
+        dist_x = max(0, abs(cx - (start_x + total_width / 2)) - total_width / 2)
+        dist_y = abs(cy - center_y)
+        dist_tot = math.sqrt(dist_x**2 + dist_y**2)
+
+        # Exponential falloff for opacity and size as distance increases
+        falloff = math.exp(-dist_tot / 180.0)
+        base_op = prng.uniform(0.2, 0.9) * falloff
+        op = max(0.08, min(0.95, base_op))
+
+        # Particles close to text are slightly larger/brighter
+        r = prng.uniform(0.7, 3.2) * (0.6 + 0.4 * falloff)
+
+        p_elements.append(
+            f'  <circle cx="{cx:.1f}" cy="{cy:.1f}" r="{r:.2f}" fill="#ffffff" opacity="{op:.2f}" />\n'
+        )
+
+    p_elements.append('</g>\n')
+    return "".join(p_elements)
+
+
 def build_typography() -> str:
-    """Generate character-by-character Loki font-cycling typography for any arbitrary word/text."""
+    """Generate character-by-character Loki font-cycling typography with unified group filters."""
     typo_elements = ['<!-- Animated Typography -->\n', '<g id="loki-title-group">\n']
 
     prng = random.Random(SEED + 42)
@@ -298,18 +377,23 @@ def build_typography() -> str:
     if n_chars == 0:
         return ""
 
-    # Dynamic Layout math: scale font-size and spacing to fit any word length within canvas width
+    # Dynamic Layout math: calculate font size and letter spacing to guarantee distinct gaps between characters
     max_text_width = WIDTH * 0.86
+    gap_mult = max(0.8, LETTER_GAP_FACTOR)
     if n_chars > 1:
-        letter_spacing_px = min(260.0, max_text_width / (n_chars - 1))
+        raw_spacing = max_text_width / (n_chars - 1)
+        letter_spacing_px = min(280.0 * gap_mult, raw_spacing)
     else:
         letter_spacing_px = 0.0
 
-    char_base_size = min(320.0, letter_spacing_px * 1.25) if n_chars > 1 else 320.0
+    # Glyphs are sized relative to letter spacing to ensure visible separation/gap between letter bounds
+    char_base_size = min(280.0, (letter_spacing_px / gap_mult) * 1.05) if n_chars > 1 else 280.0
     total_width = (n_chars - 1) * letter_spacing_px
     start_x = (WIDTH - total_width) / 2
     center_y = HEIGHT / 2 + (char_base_size * 0.06)
 
+    # Pre-calculate character keyframes and font/weight sequences for sync
+    char_data = []
     for i, char in enumerate(text_chars):
         if char == ' ':
             continue
@@ -317,7 +401,6 @@ def build_typography() -> str:
         char_x = start_x + i * letter_spacing_px
         char_y = center_y
 
-        # Determine settled hero font for this character
         if char in HERO_CHARACTER_FONTS:
             hero_font = HERO_CHARACTER_FONTS[char]
         else:
@@ -326,83 +409,97 @@ def build_typography() -> str:
         cycling_fonts = []
         keytimes = []
 
-        # Phase 1: Rapid cycling (25 shifts)
         n_p1 = 25
         for s in range(n_p1):
             kt = (s / n_p1) * 0.45
             keytimes.append(kt)
             cycling_fonts.append(prng.choice(FONT_POOL))
 
-        # Phase 2: Settled Hero Font (10 shifts holding hero font)
         n_p2 = 10
         for s in range(n_p2):
             kt = 0.45 + (s / n_p2) * 0.30
             keytimes.append(kt)
             cycling_fonts.append(hero_font)
 
-        # Phase 3: Rapid cycling again (15 shifts)
         n_p3 = 15
         for s in range(n_p3):
             kt = 0.75 + (s / n_p3) * 0.25
             keytimes.append(kt)
             cycling_fonts.append(prng.choice(FONT_POOL))
 
-        # Final keyTime at 1.0
         keytimes.append(1.0)
-        cycling_fonts.append(cycling_fonts[0]) # Loop seamlessly back to initial font
+        cycling_fonts.append(cycling_fonts[0])
 
         keytimes_str = "; ".join(f"{kt:.3f}" for kt in keytimes)
         fonts_str = "; ".join(cycling_fonts)
-
-        # Font weight variation sequence matching keytimes
         weights = [prng.choice(["400", "700", "900", "800", "300"]) for _ in range(len(keytimes))]
         weights_str = "; ".join(weights)
 
-        filter_attr = 'filter="url(#loki-time-distortion) url(#loki-emboss)"' if (ENABLE_TIME_DISTORTION and DISTORTION_AMOUNT > 0.0) else 'filter="url(#loki-emboss)"'
+        char_data.append({
+            'index': i,
+            'char': char,
+            'x': char_x,
+            'y': char_y,
+            'keytimes_str': keytimes_str,
+            'fonts_str': fonts_str,
+            'weights_str': weights_str,
+        })
 
-        typo_elements.append(f'  <!-- Letter {html.escape(char)} -->\n')
-        typo_elements.append(f'  <g id="letter-group-{i}" transform="translate({char_x:.1f}, {char_y:.1f})">\n')
-
-        # Layer 1: Luminous Outer Green Bloom Halo
-        if ENABLE_GLOW:
-            glow1_op = min(1.0, max(0.0, 0.85 * GLOW_INTENSITY))
+    # Pass 1: Unified Luminous Outer Green Bloom Halo across ALL letters
+    if ENABLE_GLOW:
+        glow1_op = min(1.0, max(0.0, 0.85 * GLOW_INTENSITY))
+        typo_elements.append(
+            f'  <!-- Pass 1: Unified Outer Green Bloom Halo -->\n'
+            f'  <g id="loki-glow-outer-group" filter="url(#loki-green-glow)" opacity="{glow1_op:.2f}">\n'
+        )
+        for cd in char_data:
             typo_elements.append(
-                f'    <text x="0" y="0" class="loki-text" font-size="{char_base_size:.1f}" '
-                f'fill="{GREEN_MAGIC}" opacity="{glow1_op:.2f}" filter="url(#loki-green-glow)">{html.escape(char)}\n'
+                f'    <g transform="translate({cd["x"]:.1f}, {cd["y"]:.1f})">\n'
+                f'      <text x="0" y="0" class="loki-text" font-size="{char_base_size:.1f}" fill="{GREEN_MAGIC}">{html.escape(cd["char"])}\n'
             )
             if ENABLE_FONT_CYCLING:
                 typo_elements.append(
-                    f'      <animate attributeName="font-family" calcMode="discrete" values="{fonts_str}" keyTimes="{keytimes_str}" dur="{DURATION}s" repeatCount="indefinite" />\n'
+                    f'        <animate attributeName="font-family" calcMode="discrete" values="{cd["fonts_str"]}" keyTimes="{cd["keytimes_str"]}" dur="{DURATION}s" repeatCount="indefinite" />\n'
                 )
-            typo_elements.append('    </text>\n')
+            typo_elements.append('      </text>\n    </g>\n')
+        typo_elements.append('  </g>\n')
 
-        # Layer 2: Soft Inner Mint Glow Halo
+        # Pass 2: Unified Soft Inner Mint Glow Halo across ALL letters
         glow2_op = min(1.0, max(0.0, 0.9 * GLOW_INTENSITY))
         typo_elements.append(
-            f'    <text x="0" y="0" class="loki-text" font-size="{char_base_size:.1f}" '
-            f'fill="{TEXT_COLOR}" opacity="{glow2_op:.2f}" filter="url(#loki-green-glow)">{html.escape(char)}\n'
+            f'  <!-- Pass 2: Unified Inner Mint Glow Halo -->\n'
+            f'  <g id="loki-glow-inner-group" filter="url(#loki-green-glow)" opacity="{glow2_op:.2f}">\n'
         )
-        if ENABLE_FONT_CYCLING:
+        for cd in char_data:
             typo_elements.append(
-                f'      <animate attributeName="font-family" calcMode="discrete" values="{fonts_str}" keyTimes="{keytimes_str}" dur="{DURATION}s" repeatCount="indefinite" />\n'
+                f'    <g transform="translate({cd["x"]:.1f}, {cd["y"]:.1f})">\n'
+                f'      <text x="0" y="0" class="loki-text" font-size="{char_base_size:.1f}" fill="{TEXT_COLOR}">{html.escape(cd["char"])}\n'
             )
-        typo_elements.append('    </text>\n')
-
-        # Layer 3: Core Radiant Mint-White Text Face
-        typo_elements.append(
-            f'    <text x="0" y="0" class="loki-text" font-size="{char_base_size:.1f}" '
-            f'fill="{TEXT_COLOR}" {filter_attr}>{html.escape(char)}\n'
-        )
-        if ENABLE_FONT_CYCLING:
-            typo_elements.append(
-                f'      <animate attributeName="font-family" calcMode="discrete" values="{fonts_str}" keyTimes="{keytimes_str}" dur="{DURATION}s" repeatCount="indefinite" />\n'
-            )
-            typo_elements.append(
-                f'      <animate attributeName="font-weight" calcMode="discrete" values="{weights_str}" keyTimes="{keytimes_str}" dur="{DURATION}s" repeatCount="indefinite" />\n'
-            )
-        typo_elements.append('    </text>\n')
-
+            if ENABLE_FONT_CYCLING:
+                typo_elements.append(
+                    f'        <animate attributeName="font-family" calcMode="discrete" values="{cd["fonts_str"]}" keyTimes="{cd["keytimes_str"]}" dur="{DURATION}s" repeatCount="indefinite" />\n'
+                )
+            typo_elements.append('      </text>\n    </g>\n')
         typo_elements.append('  </g>\n')
+
+    # Pass 3: Core Radiant Mint-White Text Face with Bevel Emboss & Time Distortion
+    filter_attr = 'filter="url(#loki-time-distortion) url(#loki-emboss)"' if (ENABLE_TIME_DISTORTION and DISTORTION_AMOUNT > 0.0) else 'filter="url(#loki-emboss)"'
+    typo_elements.append(
+        f'  <!-- Pass 3: Core Radiant Text Face -->\n'
+        f'  <g id="loki-core-text-group" {filter_attr}>\n'
+    )
+    for cd in char_data:
+        typo_elements.append(
+            f'    <g id="letter-group-{cd["index"]}" transform="translate({cd["x"]:.1f}, {cd["y"]:.1f})">\n'
+            f'      <text x="0" y="0" class="loki-text" font-size="{char_base_size:.1f}" fill="{TEXT_COLOR}">{html.escape(cd["char"])}\n'
+        )
+        if ENABLE_FONT_CYCLING:
+            typo_elements.append(
+                f'        <animate attributeName="font-family" calcMode="discrete" values="{cd["fonts_str"]}" keyTimes="{cd["keytimes_str"]}" dur="{DURATION}s" repeatCount="indefinite" />\n'
+                f'        <animate attributeName="font-weight" calcMode="discrete" values="{cd["weights_str"]}" keyTimes="{cd["keytimes_str"]}" dur="{DURATION}s" repeatCount="indefinite" />\n'
+            )
+        typo_elements.append('      </text>\n    </g>\n')
+    typo_elements.append('  </g>\n')
 
     typo_elements.append('</g>\n')
     return "".join(typo_elements)
@@ -416,6 +513,7 @@ def build_svg() -> str:
     svg_parts.append(build_svg_header())
     svg_parts.append(build_svg_defs())
     svg_parts.append(build_background())
+    svg_parts.append(build_particles())
     svg_parts.append(build_typography())
     svg_parts.append('</svg>\n')
 
