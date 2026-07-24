@@ -2,20 +2,6 @@
 ===============================================================================
 Animated SVG Title Generator (Loki Series Aesthetic)
 ===============================================================================
-Generates a clean, high-impact animated SVG title card inspired by the
-Marvel Loki title sequence:
-  - Asynchronous font cycling per character across diverse typefaces
-  - Shifting character weights, sizes, and font-families
-  - Metallic gold lettering with subtle green magic glow
-  - Dark cinematic background with subtle central aura
-  - Pure SVG SMIL animations (10-second loop)
-
-Run:
-  python generator.py
-
-Output:
-  output.svg
-===============================================================================
 """
 
 import base64
@@ -28,10 +14,10 @@ import os
 # CONFIGURATION BLOCK
 # =============================================================================
 
-TEXT = "LOKI"
+TEXT = "VARUN KARLI"
 OUTPUT = "output.svg"
-WIDTH = 1800
-HEIGHT = 500
+WIDTH = 2500
+HEIGHT = 1800
 BACKGROUND = "#030806"
 TEXT_COLOR = "#ebfce2"
 PRIMARY_GOLD = "#d4af37"
