@@ -14,10 +14,10 @@ import os
 # CONFIGURATION BLOCK
 # =============================================================================
 
-TEXT = "VARUN KARLI"
+TEXT = "LOKI"
 OUTPUT = "output.svg"
-WIDTH = 2500
-HEIGHT = 1800
+WIDTH = 8000
+HEIGHT = 500
 BACKGROUND = "#030806"
 TEXT_COLOR = "#ebfce2"
 PRIMARY_GOLD = "#d4af37"
@@ -26,7 +26,7 @@ GREEN_MAGIC = "#6effa0"
 GLOW_AURA = "#45e87a"
 
 DURATION = 12.0
-SEED = 0
+SEED = 1
 
 ENABLE_GLOW = True
 ENABLE_FONT_CYCLING = True
@@ -34,17 +34,19 @@ ENABLE_TIME_DISTORTION = True
 
 # Glow & Shine Controls for Glowing Letters
 GLOW_INTENSITY = 0.5   # Glow brightness multiplier (e.g. 0.2 = subtle, 1.0 = normal, 2.0 = ultra radiant)
-GLOW_RADIUS = 1.5      # Glow halo blur spread radius multiplier (e.g. 0.5 to 2.5)
+GLOW_RADIUS = 3.5      # Glow halo blur spread radius multiplier (e.g. 0.5 to 2.5)
 
 # Time Distortion Controls
 DISTORTION_AMOUNT = 0.5  # Glitch/warp displacement scale multiplier (e.g. 0.0 = off, 0.5 = subtle, 1.0 = default, 2.5 = heavy warp)
 
-# Typography Gap & Spacing Controls
+# Typography Size, Gap & Canvas Controls
+FONT_SIZE = 1000.0         # Target text font size in pixels (e.g. 180.0 = compact, 280.0 = default, 450.0 = massive)
 LETTER_GAP_FACTOR = 1.35  # Gap ratio multiplier between letters (e.g., 1.0 = normal, 1.35 = spacious gap, 2.0 = extra wide spacing)
+AUTO_EXPAND_CANVAS = True # Automatically expand SVG canvas width & height if text length exceeds base canvas bounds
 
 # Ambient White Particle Effect Controls
 ENABLE_PARTICLES = True
-PARTICLE_COUNT = 30  # Number of floating white particles (e.g. 0 = none, 30 = subtle, 60 = normal, 120 = dense cosmic dust)
+PARTICLE_COUNT = 1000  # Number of static white particles (e.g. 0 = none, 30 = subtle, 60 = normal, 120 = dense cosmic dust)
 
 # Custom local fonts folder
 FONTS_DIR = "fonts"
@@ -60,19 +62,15 @@ CUSTOM_FONTS = []
 # Comprehensive pool of Google and System font families
 BASE_FONT_POOL = [
     # Google Fonts
-    "Cinzel Decorative", "Cinzel", "Playfair Display", "Orbitron", "Montserrat",
-    "MedievalSharp", "Pirata One", "Audiowide", "Oswald", "Bebas Neue",
-    "Fira Code", "Exo 2", "Rajdhani", "Syne", "Chakra Petch", "UnifrakturMaguntia",
+    "Orbitron", "MedievalSharp", "Pirata One", "Audiowide",
+    "Exo 2", "Syne Tactile", "UnifrakturMaguntia", "Bitcount Grid Double" ,
     # System Fonts
-    "Georgia", "Garamond", "Times New Roman", "Impact", "Trebuchet MS",
-    "Courier New", "Papyrus", "Copperplate", "Verdana", "Comic Sans MS", "Arial Black"
+    "Garamond", "Courier New", "Papyrus", "Comic Sans MS", "Broadway"
 ]
 
 # Default hero fonts pool to cycle through for settled character states
 BASE_HERO_FONTS_POOL = [
-    "Cinzel Decorative", "Orbitron", "MedievalSharp", "Playfair Display",
-    "UnifrakturMaguntia", "Bebas Neue", "Audiowide", "Montserrat",
-    "Pirata One", "Syne", "Oswald", "Chakra Petch", "Exo 2"
+
 ]
 
 # Dynamic pools populated at runtime including all custom fonts
@@ -81,10 +79,6 @@ HERO_FONTS_POOL = list(BASE_HERO_FONTS_POOL)
 
 # Character-specific hero font overrides (optional dictionary fallback)
 HERO_CHARACTER_FONTS = {
-    'L': "Old English Five",
-    'O': "Orbitron",
-    'K': "MedievalSharp",
-    'I': "Playfair Display"
 }
 
 # =============================================================================
@@ -127,11 +121,11 @@ def load_custom_fonts() -> tuple[str, list[str]]:
                     full_path = os.path.abspath(os.path.join(sdir, fname))
                     stem = fname.rsplit(".", 1)[0]
                     clean_name = stem.replace("-", " ").replace("_", " ").replace(".", " ").title().strip()
+                    primary_name = clean_name if clean_name else stem
 
                     aliases = discovered.setdefault(full_path, [])
-                    for name in [stem, clean_name]:
-                        if name and name not in aliases:
-                            aliases.append(name)
+                    if primary_name and primary_name not in aliases:
+                        aliases.append(primary_name)
         except Exception as e:
             print(f"Warning scanning font folder '{sdir}': {e}")
 
@@ -152,23 +146,74 @@ def load_custom_fonts() -> tuple[str, list[str]]:
                     f"      font-weight: normal;\n"
                     f"      font-style: normal;\n"
                     f"    }}\n"
+                    f"    @font-face {{\n"
+                    f"      font-family: '{os.path.splitext(os.path.basename(font_path))[0]}';\n"
+                    f"      src: url('data:{mime};charset=utf-8;base64,{b64_data}') format('{fmt}');\n"
+                    f"      font-weight: normal;\n"
+                    f"      font-style: normal;\n"
+                    f"    }}\n"
                 )
                 if fname not in loaded_font_names:
                     loaded_font_names.append(fname)
 
-            print(f"Auto-detected custom font: {os.path.basename(font_path)} -> registered as {font_names}")
+            print(f"Auto-detected custom font: {os.path.basename(font_path)} -> registered as '{font_names[0]}'")
         except Exception as e:
             print(f"Warning: Could not load custom font '{font_path}': {e}")
 
     return "".join(css_rules), loaded_font_names
 
 
-def build_svg_header() -> str:
-    """Generate SVG root tag with viewBox, dimensions, and styling."""
+def compute_layout() -> tuple[float, float, float, float, float, float]:
+    """
+    Computes SVG canvas dimensions (width, height) and typography placement math based on:
+    - Base canvas dimensions (WIDTH, HEIGHT)
+    - FONT_SIZE and LETTER_GAP_FACTOR
+    - AUTO_EXPAND_CANVAS setting
+
+    Returns: (actual_width, actual_height, start_x, center_y, letter_spacing_px, char_base_size)
+    """
+    text_chars = [c for c in TEXT if c != ' ']
+    n_chars = len(text_chars)
+    if n_chars == 0:
+        return float(WIDTH), float(HEIGHT), float(WIDTH) / 2.0, float(HEIGHT) / 2.0, 0.0, FONT_SIZE
+
+    target_char_size = max(30.0, float(FONT_SIZE))
+    gap_mult = max(0.5, float(LETTER_GAP_FACTOR))
+
+    letter_spacing_px = (target_char_size / 1.05) * gap_mult
+    total_text_width = (n_chars - 1) * letter_spacing_px if n_chars > 1 else 0.0
+    margin_x = target_char_size * 1.25
+
+    needed_width = total_text_width + (margin_x * 2.0)
+    needed_height = max(float(HEIGHT), target_char_size * 2.2)
+
+    if AUTO_EXPAND_CANVAS:
+        actual_width = max(float(WIDTH), needed_width)
+        actual_height = max(float(HEIGHT), needed_height)
+        char_base_size = target_char_size
+    else:
+        actual_width = float(WIDTH)
+        actual_height = float(HEIGHT)
+        max_allowed_w = actual_width * 0.86
+        if total_text_width > max_allowed_w and n_chars > 1:
+            letter_spacing_px = max_allowed_w / (n_chars - 1)
+            char_base_size = (letter_spacing_px / gap_mult) * 1.05
+            total_text_width = (n_chars - 1) * letter_spacing_px
+        else:
+            char_base_size = target_char_size
+
+    start_x = (actual_width - total_text_width) / 2.0 if n_chars > 1 else actual_width / 2.0
+    center_y = actual_height / 2.0 + (char_base_size * 0.06)
+
+    return actual_width, actual_height, start_x, center_y, letter_spacing_px, char_base_size
+
+
+def build_svg_header(canvas_w: float, canvas_h: float) -> str:
+    """Generate SVG root tag with dynamic viewBox, dimensions, and styling."""
     return (
         f'<svg xmlns="http://www.w3.org/2000/svg" '
         f'xmlns:xlink="http://www.w3.org/1999/xlink" '
-        f'viewBox="0 0 {WIDTH} {HEIGHT}" width="100%" height="100%" '
+        f'viewBox="0 0 {canvas_w:.1f} {canvas_h:.1f}" width="100%" height="100%" '
         f'style="background-color: {BACKGROUND}; width: 100%; height: 100%; display: block;">\n'
     )
 
@@ -281,16 +326,16 @@ def build_svg_defs() -> str:
     return "".join(defs)
 
 
-def build_background() -> str:
-    """Generate dark background."""
+def build_background(canvas_w: float, canvas_h: float) -> str:
+    """Generate dark background covering the full canvas."""
     return (
         '<!-- Background -->\n'
-        f'<rect width="{WIDTH}" height="{HEIGHT}" fill="{BACKGROUND}" />\n'
-        f'<rect width="{WIDTH}" height="{HEIGHT}" fill="url(#loki-bg-glow)" />\n'
+        f'<rect width="{canvas_w:.1f}" height="{canvas_h:.1f}" fill="{BACKGROUND}" />\n'
+        f'<rect width="{canvas_w:.1f}" height="{canvas_h:.1f}" fill="url(#loki-bg-glow)" />\n'
     )
 
 
-def build_particles() -> str:
+def build_particles(canvas_w: float, canvas_h: float, start_x: float, center_y: float, letter_spacing_px: float, char_base_size: float) -> str:
     """
     Generate static white ambient particles clustered around text coordinates,
     fading and reducing in density as distance from text increases.
@@ -306,39 +351,27 @@ def build_particles() -> str:
     if n_chars == 0:
         return ""
 
-    max_text_width = WIDTH * 0.86
-    gap_mult = max(0.8, LETTER_GAP_FACTOR)
-    if n_chars > 1:
-        raw_spacing = max_text_width / (n_chars - 1)
-        letter_spacing_px = min(280.0 * gap_mult, raw_spacing)
-    else:
-        letter_spacing_px = 0.0
+    total_width = (n_chars - 1) * letter_spacing_px if n_chars > 1 else 0.0
 
-    char_base_size = min(280.0, (letter_spacing_px / gap_mult) * 1.05) if n_chars > 1 else 280.0
-    total_width = (n_chars - 1) * letter_spacing_px
-    start_x = (WIDTH - total_width) / 2
-    center_y = HEIGHT / 2 + (char_base_size * 0.06)
-
-    # Generate static particles with Gaussian spatial clustering around letters
     for i in range(PARTICLE_COUNT):
         # Pick a random character anchor
         char_idx = prng.randint(0, max(0, n_chars - 1))
         anchor_x = start_x + char_idx * letter_spacing_px
 
         # Distance distribution: concentrated near (anchor_x, center_y) with falloff
-        offset_x = prng.gauss(0, letter_spacing_px * 0.85)
+        offset_x = prng.gauss(0, letter_spacing_px * 0.85) if n_chars > 1 else prng.gauss(0, char_base_size * 0.85)
         offset_y = prng.gauss(0, char_base_size * 0.65)
 
-        cx = min(WIDTH - 15, max(15, anchor_x + offset_x))
-        cy = min(HEIGHT - 15, max(15, center_y + offset_y))
+        cx = min(canvas_w - 15, max(15, anchor_x + offset_x))
+        cy = min(canvas_h - 15, max(15, center_y + offset_y))
 
         # Calculate radial/vertical distance from nearest text region
-        dist_x = max(0, abs(cx - (start_x + total_width / 2)) - total_width / 2)
+        dist_x = max(0, abs(cx - (start_x + total_width / 2)) - total_width / 2) if n_chars > 1 else abs(cx - start_x)
         dist_y = abs(cy - center_y)
         dist_tot = math.sqrt(dist_x**2 + dist_y**2)
 
         # Exponential falloff for opacity and size as distance increases
-        falloff = math.exp(-dist_tot / 180.0)
+        falloff = math.exp(-dist_tot / (char_base_size * 0.65 + 50))
         base_op = prng.uniform(0.2, 0.9) * falloff
         op = max(0.08, min(0.95, base_op))
 
@@ -353,7 +386,7 @@ def build_particles() -> str:
     return "".join(p_elements)
 
 
-def build_typography() -> str:
+def build_typography(canvas_w: float, canvas_h: float, start_x: float, center_y: float, letter_spacing_px: float, char_base_size: float) -> str:
     """Generate character-by-character Loki font-cycling typography with unified group filters."""
     typo_elements = ['<!-- Animated Typography -->\n', '<g id="loki-title-group">\n']
 
@@ -363,20 +396,46 @@ def build_typography() -> str:
     if n_chars == 0:
         return ""
 
-    # Dynamic Layout math: calculate font size and letter spacing to guarantee distinct gaps between characters
-    max_text_width = WIDTH * 0.86
-    gap_mult = max(0.8, LETTER_GAP_FACTOR)
-    if n_chars > 1:
-        raw_spacing = max_text_width / (n_chars - 1)
-        letter_spacing_px = min(280.0 * gap_mult, raw_spacing)
-    else:
-        letter_spacing_px = 0.0
+    def font_canonical(name: str) -> str:
+        return name.lower().replace(" ", "").replace("-", "").replace("_", "").replace(".", "")
 
-    # Glyphs are sized relative to letter spacing to ensure visible separation/gap between letter bounds
-    char_base_size = min(280.0, (letter_spacing_px / gap_mult) * 1.05) if n_chars > 1 else 280.0
-    total_width = (n_chars - 1) * letter_spacing_px
-    start_x = (WIDTH - total_width) / 2
-    center_y = HEIGHT / 2 + (char_base_size * 0.06)
+    # Combine font pools to ensure maximum variety of candidate hero fonts
+    candidate_hero_fonts = []
+    seen_canonical = set()
+    for f in (HERO_FONTS_POOL + FONT_POOL):
+        canon = font_canonical(f)
+        if canon not in seen_canonical:
+            seen_canonical.add(canon)
+            candidate_hero_fonts.append(f)
+
+    # Assign guaranteed unique settled hero font to each character
+    used_hero_canonical = set()
+    hero_font_assignments = {}
+
+    for i, char in enumerate(text_chars):
+        if char == ' ':
+            continue
+
+        selected_hero = None
+        # Check if character has an explicit override in HERO_CHARACTER_FONTS that is still unused
+        if char in HERO_CHARACTER_FONTS:
+            override = HERO_CHARACTER_FONTS[char]
+            if font_canonical(override) not in used_hero_canonical:
+                selected_hero = override
+
+        # Select next available unique font from candidate list
+        if not selected_hero:
+            for font in candidate_hero_fonts:
+                if font_canonical(font) not in used_hero_canonical:
+                    selected_hero = font
+                    break
+
+        # Fallback if text has more characters than total available unique fonts in all pools
+        if not selected_hero:
+            selected_hero = candidate_hero_fonts[i % len(candidate_hero_fonts)]
+
+        used_hero_canonical.add(font_canonical(selected_hero))
+        hero_font_assignments[i] = selected_hero
 
     # Pre-calculate character keyframes and font/weight sequences for sync
     char_data = []
@@ -386,11 +445,7 @@ def build_typography() -> str:
 
         char_x = start_x + i * letter_spacing_px
         char_y = center_y
-
-        if char in HERO_CHARACTER_FONTS:
-            hero_font = HERO_CHARACTER_FONTS[char]
-        else:
-            hero_font = HERO_FONTS_POOL[i % len(HERO_FONTS_POOL)]
+        hero_font = hero_font_assignments[i]
 
         cycling_fonts = []
         keytimes = []
@@ -426,10 +481,15 @@ def build_typography() -> str:
             'char': char,
             'x': char_x,
             'y': char_y,
+            'hero_font': hero_font,
             'keytimes_str': keytimes_str,
             'fonts_str': fonts_str,
             'weights_str': weights_str,
         })
+
+    print(f"Settled Hero Fonts (Guaranteed Unique for each letter in '{TEXT}'):")
+    for cd in char_data:
+        print(f"  Letter '{cd['char']}' (pos {cd['index'] + 1}) -> Settles on: '{cd['hero_font']}'")
 
     # Pass 1: Unified Luminous Outer Green Bloom Halo across ALL letters
     if ENABLE_GLOW:
@@ -492,15 +552,17 @@ def build_typography() -> str:
 
 
 def build_svg() -> str:
-    """Assemble standalone SVG string."""
+    """Assemble standalone SVG string with dynamic auto-expanding canvas."""
     random.seed(SEED)
 
+    canvas_w, canvas_h, start_x, center_y, letter_spacing_px, char_base_size = compute_layout()
+
     svg_parts = []
-    svg_parts.append(build_svg_header())
+    svg_parts.append(build_svg_header(canvas_w, canvas_h))
     svg_parts.append(build_svg_defs())
-    svg_parts.append(build_background())
-    svg_parts.append(build_particles())
-    svg_parts.append(build_typography())
+    svg_parts.append(build_background(canvas_w, canvas_h))
+    svg_parts.append(build_particles(canvas_w, canvas_h, start_x, center_y, letter_spacing_px, char_base_size))
+    svg_parts.append(build_typography(canvas_w, canvas_h, start_x, center_y, letter_spacing_px, char_base_size))
     svg_parts.append('</svg>\n')
 
     return "".join(svg_parts)
