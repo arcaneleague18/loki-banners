@@ -25,7 +25,7 @@ SECONDARY_GOLD = "#f6e27a"
 GREEN_MAGIC = "#6effa0"
 GLOW_AURA = "#45e87a"
 
-DURATION = 12.0
+DURATION = 15.0
 SEED = 1
 
 ENABLE_GLOW = True
@@ -34,13 +34,13 @@ ENABLE_TIME_DISTORTION = True
 
 # Glow & Shine Controls for Glowing Letters
 GLOW_INTENSITY = 0.5   # Glow brightness multiplier (e.g. 0.2 = subtle, 1.0 = normal, 2.0 = ultra radiant)
-GLOW_RADIUS = 3.5      # Glow halo blur spread radius multiplier (e.g. 0.5 to 2.5)
+GLOW_RADIUS = 3.0      # Glow halo blur spread radius multiplier (e.g. 0.5 to 2.5)
 
 # Time Distortion Controls
-DISTORTION_AMOUNT = 0.5  # Glitch/warp displacement scale multiplier (e.g. 0.0 = off, 0.5 = subtle, 1.0 = default, 2.5 = heavy warp)
+DISTORTION_AMOUNT = 1.0  # Glitch/warp displacement scale multiplier (e.g. 0.0 = off, 0.5 = subtle, 1.0 = default, 2.5 = heavy warp)
 
 # Typography Size, Gap & Canvas Controls
-FONT_SIZE = 1000.0         # Target text font size in pixels (e.g. 180.0 = compact, 280.0 = default, 450.0 = massive)
+FONT_SIZE = 700.0         # Target text font size in pixels (e.g. 180.0 = compact, 280.0 = default, 450.0 = massive)
 LETTER_GAP_FACTOR = 1.35  # Gap ratio multiplier between letters (e.g., 1.0 = normal, 1.35 = spacious gap, 2.0 = extra wide spacing)
 AUTO_EXPAND_CANVAS = True # Automatically expand SVG canvas width & height if text length exceeds base canvas bounds
 
@@ -79,6 +79,10 @@ HERO_FONTS_POOL = list(BASE_HERO_FONTS_POOL)
 
 # Character-specific hero font overrides (optional dictionary fallback)
 HERO_CHARACTER_FONTS = {
+    'L': "Dune Rise",
+    'O': "Rune1",
+    'K': "Dynamix",
+    'I': "Cloisterblack"
 }
 
 # =============================================================================
